@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nuclear Outages · EIA Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: #1a1d27;
+      border-bottom: 1px solid #2a2d3a;
+      padding: 0 24px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 20px; }
+    header h1 { font-size: 0.95rem; font-weight: 600; color: #fff; letter-spacing: 0.3px; }
+
+    .status-pills { display: flex; gap: 8px; }
+    .status-pill {
+      font-size: 0.72rem;
+      color: #666;
+      background: #0f1117;
+      border: 1px solid #22253a;
+      border-radius: 20px;
+      padding: 3px 10px;
+    }
+    .status-pill b { color: #999; }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      background: #13151f;
+      border-bottom: 1px solid #2a2d3a;
+      padding: 10px 24px;
+      display: flex;
+      align-items: flex-end;
+      gap: 14px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    /* Pill group (table selector, view selector) */
+    .pill-group {
+      display: flex;
+      background: #0f1117;
+      border: 1px solid #2a2d3a;
+      border-radius: 7px;
+      overflow: hidden;
+    }
+
+    .pill-btn {
+      padding: 6px 15px;
+      font-size: 0.79rem;
+      font-weight: 500;
+      color: #777;
+      background: none;
+      border: none;
+      cursor: pointer;
+      transition: color 0.12s, background 0.12s;
+      white-space: nowrap;
+    }
+
+    .pill-btn + .pill-btn { border-left: 1px solid #2a2d3a; }
+    .pill-btn:hover { color: #ccc; background: #1a1d27; }
+    .pill-btn.active { color: #fff; background: #253550; }
+
+    .toolbar-sep {
+      width: 1px;
+      height: 28px;
+      background: #2a2d3a;
+      align-self: center;
+    }
+
+    /* Inline control groups */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .control-group label {
+      font-size: 0.67rem;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    select, input[type="date"], input[type="text"], input[type="number"] {
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      color: #e0e0e0;
+      padding: 0 10px;
+      border-radius: 5px;
+      font-size: 0.81rem;
+      outline: none;
+      height: 30px;
+    }
+
+    select:focus, input:focus { border-color: #4a6fa5; }
+
+    .btn-primary {
+      padding: 0 18px;
+      height: 30px;
+      border-radius: 5px;
+      border: none;
+      font-size: 0.81rem;
+      cursor: pointer;
+      font-weight: 500;
+      background: #4a6fa5;
+      color: #fff;
+    }
+    .btn-primary:hover { background: #3d5f8f; }
+
+    .btn-ghost {
+      padding: 0 14px;
+      height: 30px;
+      border-radius: 5px;
+      font-size: 0.81rem;
+      cursor: pointer;
+      font-weight: 400;
+      background: none;
+      border: 1px solid #2a2d3a;
+      color: #777;
+    }
+    .btn-ghost:hover { border-color: #4a6fa5; color: #ccc; }
+    .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #refreshBtn { border-color: #2d6a2d; color: #70cc70; }
+    #refreshBtn:hover { border-color: #70cc70; color: #90e890; }
+    #refreshBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .ml-auto { margin-left: auto; }
+
+    /* ── Alert ── */
+    .alert { padding: 9px 24px; font-size: 0.82rem; display: none; flex-shrink: 0; }
+    .alert-error   { display: block; background: #1e1010; border-bottom: 1px solid #5a2020; color: #ff7070; }
+    .alert-success { display: block; background: #101e10; border-bottom: 1px solid #205a20; color: #70cc70; }
+    .alert-info    { display: block; background: #10101e; border-bottom: 1px solid #20205a; color: #7070ff; }
+
+    /* ── Main area ── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .table-wrap {
+      flex: 1;
+      overflow: auto;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+
+    thead {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    thead th {
+      padding: 10px 16px;
+      text-align: left;
+      color: #777;
+      font-weight: 600;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+      background: #1a1d27;
+      border-bottom: 1px solid #2a2d3a;
+    }
+
+    thead th:hover { color: #ddd; }
+    thead th.sort-asc::after  { content: ' \2191'; color: #4a6fa5; }
+    thead th.sort-desc::after { content: ' \2193'; color: #4a6fa5; }
+
+    tbody tr { border-bottom: 1px solid #16192280; }
+    tbody tr:hover { background: #14172080; }
+    tbody td { padding: 9px 16px; color: #bbb; }
+
+    td.hi  { color: #ff7070; font-weight: 600; }
+    td.mid { color: #ffaa50; }
+    td.lo  { color: #60c060; }
+
+    .loading, .empty {
+      text-align: center;
+      padding: 80px 0;
+      color: #444;
+      font-size: 0.88rem;
+    }
+
+    /* ── Pagination ── */
+    .pagination {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 24px;
+      border-top: 1px solid #2a2d3a;
+      background: #13151f;
+      flex-shrink: 0;
+      font-size: 0.78rem;
+    }
+
+    .pagination button {
+      background: #1a1d27;
+      color: #777;
+      border: 1px solid #2a2d3a;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+    .pagination button:hover:not(:disabled) { background: #2a2d3a; color: #fff; }
+    .pagination button:disabled { opacity: 0.3; cursor: not-allowed; }
+    .page-info { color: #444; margin: 0 4px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────────── -->
+<header>
+  <div class="header-left">
+    <h1>Nuclear Outages</h1>
+    <div class="status-pills" id="statusPills">
+      <span class="status-pill">connecting...</span>
+    </div>
+  </div>
+  <button class="btn-ghost" id="refreshBtn" onclick="triggerRefresh()">&#8635; Refresh Data</button>
+</header>
+
+<!-- ── Toolbar ────────────────────────────────────────────────────── -->
+<div class="toolbar">
+
+  <!-- Table selector -->
+  <div class="pill-group">
+    <button class="pill-btn active" data-table="facility"  onclick="setTable('facility')">Facility</button>
+    <button class="pill-btn"        data-table="generator" onclick="setTable('generator')">Generator</button>
+    <button class="pill-btn"        data-table="us"        onclick="setTable('us')">US National</button>
+  </div>
+
+  <div class="toolbar-sep"></div>
+
+  <!-- View selector (rebuilt on table change) -->
+  <div class="pill-group" id="viewGroup"></div>
+
+  <div class="toolbar-sep"></div>
+
+  <!-- Metric (By Plant / By Generator / vs National) -->
+  <div class="control-group" id="param-metric" style="display:none">
+    <label>Metric</label>
+    <select id="metricSelect" onchange="onMetricChange(); applyView()"></select>
+  </div>
+
+  <!-- Date range (always visible) -->
+  <div class="control-group" id="param-start">
+    <label>From</label>
+    <input type="date" id="startDate" onchange="applyView()" />
+  </div>
+  <div class="control-group" id="param-end">
+    <label>To</label>
+    <input type="date" id="endDate" onchange="applyView()" />
+  </div>
+
+  <!-- Facility filter (Records / facility + generator) -->
+  <div class="control-group" id="param-facility" style="display:none">
+    <label>Plant ID</label>
+    <input type="text" id="facilityFilter" placeholder="e.g. 46" style="width:88px" onchange="applyView()" />
+  </div>
+
+  <!-- Top N (aggregated views) -->
+  <div class="control-group" id="param-limit" style="display:none">
+    <label>Top N</label>
+    <input type="number" id="limitInput" value="20" min="1" max="100" style="width:68px" onchange="applyView()" />
+  </div>
+
+  <!-- % Threshold (Above Threshold / Spike Contributors) -->
+  <div class="control-group" id="param-threshold" style="display:none">
+    <label>% Threshold</label>
+    <input type="number" id="thresholdInput" value="10" min="0" max="100" step="1" style="width:78px" onchange="applyView()" />
+  </div>
+
+  <!-- Specific date (Contribution on Date) -->
+  <div class="control-group" id="param-date" style="display:none">
+    <label>Date</label>
+    <input type="date" id="dateInput" onchange="applyView()" />
+  </div>
+
+  <!-- Page size (Records only) -->
+  <div class="control-group" id="param-pagesize" style="display:none">
+    <label>Per page</label>
+    <select id="pageSizeSelect" onchange="applyView()">
+      <option value="50">50</option>
+      <option value="100" selected>100</option>
+      <option value="250">250</option>
+    </select>
+  </div>
+
+  <div class="ml-auto"></div>
+</div>
+
+<!-- ── Alert ──────────────────────────────────────────────────────── -->
+<div class="alert" id="alert"></div>
+
+<!-- ── Main ───────────────────────────────────────────────────────── -->
+<div class="main">
+  <div class="table-wrap">
+    <div class="loading" id="loadingMsg">Loading...</div>
+    <table id="dataTable" style="display:none">
+      <thead id="tableHead"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    <div class="empty" id="emptyMsg" style="display:none">No records found.</div>
+  </div>
+  <div class="pagination" id="pagination"></div>
+</div>
+
+<script>
+  const API     = 'http://localhost:8000';
+  const HEADERS = { 'X-API-Key': 'eia-secret-2026' };
+
+  // ── View definitions ─────────────────────────────────────────────
+  const VIEWS = {
+    facility: [
+      { value: 'records',     label: 'Records' },
+      { value: 'by_plant',    label: 'By Plant' },
+      { value: 'monthly_avg', label: 'Monthly Avg' },
+      { value: 'vs_national', label: 'vs National' },
+    ],
+    generator: [
+      { value: 'records',  label: 'Records' },
+      { value: 'by_gen',   label: 'By Generator' },
+      { value: 'dominant', label: 'Dominant Units' },
+    ],
+    us: [
+      { value: 'daily',     label: 'Daily' },
+      { value: 'monthly',   label: 'By Month' },
+      { value: 'yearly',    label: 'By Year' },
+    ],
+  };
+
+  // Metric options per view (maps to analytics query names)
+  const METRICS = {
+    by_gen: [
+      { value: 'generator_failures',     label: 'Failure Days' },
+      { value: 'longest_streak',         label: 'Longest Streak' },
+      { value: 'generator_capacity',     label: 'Capacity & Downtime' },
+      { value: 'generator_contribution', label: '% of Facility Outage' },
+    ],
+    vs_national: [
+      { value: 'avg_contribution',     label: 'Avg Contribution' },
+      { value: 'peak_national_days',   label: 'On Peak Days' },
+      { value: 'spike_contributors',   label: 'Spike Contributors' },
+      { value: 'contribution_by_date', label: 'On Specific Date' },
+    ],
+  };
+
+  // Tooltips shown on hover over column headers
+  const COL_TOOLTIPS = {
+    capacity_mw:    'Maximum registered capacity of the plant in megawatts',
+    offline_days:   'Number of days where outage was greater than 0 MW',
+    online_days:    'Number of days where outage was exactly 0 MW (full capacity)',
+    avg_pct_outage: 'Average percent of capacity offline across all days in the period',
+    worst_day_mw:   'Outage in MW on the single worst day recorded',
+    worst_day_pct:  'Percent offline on the single worst day recorded',
+  };
+
+  // Human-readable column headers
+  const COL_LABELS = {
+    facility:             'Plant ID',
+    facilityName:         'Plant',
+    generator:            'Unit',
+    period:               'Date',
+    capacity:             'Capacity (MW)',
+    outage:               'Outage (MW)',
+    percentOutage:        '% Outage',
+    total_outage_mw:      'Total Outage (MW)',
+    avg_pct_outage:       'Avg % Outage',
+    avg_outage_mw:        'Avg Outage (MW)',
+    offline_days:         'Offline Days',
+    online_days:          'Online Days',
+    streak_days:          'Streak (days)',
+    failure_days:         'Failure Days',
+    max_capacity_mw:      'Max Capacity (MW)',
+    contribution_pct:     '% of Facility',
+    avg_contribution_pct: 'Avg Contribution %',
+    national_outage_mw:   'National Outage (MW)',
+    national_outage:      'National Outage (MW)',
+    worst_day:            'Worst Day',
+    worst_day_mw:         'Worst Day Outage (MW)',
+    worst_day_pct:        'Worst Day %',
+    capacity_mw:          'Max Capacity (MW)',
+    total_outage_mw:      'Total Outage (MW)',
+    avg_pct_outage:       'Avg % Outage',
+    offline_days:         'Offline Days',
+    online_days:          'Online Days',
+    facility_outage_mw:   'Plant Outage (MW)',
+    share_pct:            '% Share',
+    month:                'Month',
+    season:               'Season',
+    year:                 'Year',
+  };
+
+  // Maps non-metric views to their analytics query
+  const VIEW_QUERY = {
+    by_plant:    'plant_summary',
+    monthly:     'national_by_month',
+    yearly:      'national_by_year',
+    monthly_avg: 'monthly_avg',
+    dominant:    'single_generator_outage',
+  };
+
+  // ── State ────────────────────────────────────────────────────────
+  let currentTable = 'facility';
+  let currentView  = 'records';
+  let sortCol = null, sortDir = 'asc';
+  let currentData = [], currentPage = 1;
+
+  // ── Boot ─────────────────────────────────────────────────────────
+  loadStatus();
+  setTable('facility');
+  applyView();
+
+  // ── Table selection ──────────────────────────────────────────────
+  function setTable(table) {
+    currentTable = table;
+    document.querySelectorAll('[data-table]').forEach(b =>
+      b.classList.toggle('active', b.dataset.table === table));
+
+    const views = VIEWS[table];
+    document.getElementById('viewGroup').innerHTML = views.map(v =>
+      `<button class="pill-btn" data-view="${v.value}" onclick="setView('${v.value}')">${v.label}</button>`
+    ).join('');
+
+    setView(views[0].value);
+  }
+
+  // ── View selection ───────────────────────────────────────────────
+  function setView(view) {
+    currentView = view;
+    document.querySelectorAll('[data-view]').forEach(b =>
+      b.classList.toggle('active', b.dataset.view === view));
+
+    const isRecords = view === 'records' || view === 'daily';
+    const hasMetric = view in METRICS;
+
+    show('param-facility', isRecords && currentTable !== 'us');
+    show('param-pagesize', isRecords);
+    show('param-limit',    !isRecords);
+    show('param-metric',   hasMetric);
+    show('param-threshold', view === 'threshold');
+    show('param-date',     false);
+
+    if (hasMetric) {
+      const sel = document.getElementById('metricSelect');
+      sel.innerHTML = METRICS[view].map(o =>
+        `<option value="${o.value}">${o.label}</option>`
+      ).join('');
+      onMetricChange();
+    }
+
+    hideAlert();
+    applyView();
+  }
+
+  function onMetricChange() {
+    const metric = document.getElementById('metricSelect').value;
+    show('param-date',      metric === 'contribution_by_date');
+    show('param-threshold', metric === 'spike_contributors' || currentView === 'threshold');
+  }
+
+  // ── Load & render ────────────────────────────────────────────────
+  function applyView() {
+    if (currentView === 'records' || currentView === 'daily') {
+      loadRecords(1);
+    } else {
+      loadAnalytics();
+    }
+  }
+
+  async function loadRecords(page = 1) {
+    currentPage = page;
+    const start    = document.getElementById('startDate').value;
+    const end      = document.getElementById('endDate').value;
+    const facility = document.getElementById('facilityFilter').value.trim();
+    const pageSize = document.getElementById('pageSizeSelect').value;
+
+    let url = `${API}/data?table=${currentTable}&page=${page}&page_size=${pageSize}`;
+    if (start)                         url += `&start=${start}`;
+    if (end)                           url += `&end=${end}`;
+    if (facility && currentTable !== 'us') url += `&facility=${facility}`;
+
+    await fetchAndRender(url, true);
+  }
+
+  async function loadAnalytics() {
+    const metric    = document.getElementById('metricSelect').value;
+    const limit     = document.getElementById('limitInput').value || 20;
+    const threshold = document.getElementById('thresholdInput').value || 10;
+    const date      = document.getElementById('dateInput').value;
+
+    const query = (currentView in METRICS) ? metric : VIEW_QUERY[currentView];
+    if (!query) return;
+
+    const start = document.getElementById('startDate').value;
+    const end   = document.getElementById('endDate').value;
+
+    let url = `${API}/analytics?query=${query}&limit=${limit}&threshold=${threshold}`;
+    if (date)  url += `&date=${date}`;
+    if (start) url += `&start=${start}`;
+    if (end)   url += `&end=${end}`;
+
+    await fetchAndRender(url, false);
+  }
+
+  async function fetchAndRender(url, paginated) {
+    sortCol = null; sortDir = 'asc';
+    setLoading();
+
+    try {
+      const res = await fetch(url, { headers: HEADERS });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      const json = await res.json();
+
+      const rows = paginated ? json.data : (json.data ?? json);
+
+      if (paginated) {
+        renderPagination(json.page, json.total_pages, json.total_records);
+        document.getElementById('pagination').style.display = 'flex';
+      } else {
+        document.getElementById('pagination').style.display = 'none';
+      }
+
+      if (!rows || rows.length === 0) {
+        setEmpty('No records match your filters.');
+        return;
+      }
+
+      currentData = rows;
+      renderTable(rows);
+
+    } catch (err) {
+      setEmpty('');
+      showAlert(friendlyError(err), 'error');
+    }
+  }
+
+  function renderTable(data) {
+    const cols = Object.keys(data[0]);
+
+    document.getElementById('tableHead').innerHTML =
+      `<tr>${cols.map(c => {
+        const label   = COL_LABELS[c] || c;
+        const cls     = sortCol === c ? (sortDir === 'asc' ? 'sort-asc' : 'sort-desc') : '';
+        const tooltip = COL_TOOLTIPS[c] ? ` title="${COL_TOOLTIPS[c]}"` : '';
+        return `<th class="${cls}"${tooltip} onclick="sortBy('${c}')">${label}</th>`;
+      }).join('')}</tr>`;
+
+    document.getElementById('tableBody').innerHTML = data.map(row =>
+      `<tr>${cols.map(c => {
+        const v   = parseFloat(row[c]);
+        const isPct = c === 'percentOutage' || c.includes('pct') || c.includes('contribution');
+        let cls = '';
+        if (!isNaN(v) && v >= 0 && isPct) {
+          if (v >= 50)      cls = 'hi';
+          else if (v >= 10) cls = 'mid';
+          else              cls = 'lo';
+        }
+        const raw = row[c] ?? '';
+        const display = (typeof raw === 'number') ? raw.toLocaleString() : raw;
+        return `<td class="${cls}">${display}</td>`;
+      }).join('')}</tr>`
+    ).join('');
+
+    document.getElementById('loadingMsg').style.display = 'none';
+    document.getElementById('emptyMsg').style.display   = 'none';
+    document.getElementById('dataTable').style.display  = 'table';
+  }
+
+  function sortBy(col) {
+    sortDir = sortCol === col ? (sortDir === 'asc' ? 'desc' : 'asc') : 'asc';
+    sortCol = col;
+    const sorted = [...currentData].sort((a, b) => {
+      const va = isNaN(a[col]) ? String(a[col]) : parseFloat(a[col]);
+      const vb = isNaN(b[col]) ? String(b[col]) : parseFloat(b[col]);
+      if (va < vb) return sortDir === 'asc' ? -1 : 1;
+      if (va > vb) return sortDir === 'asc' ?  1 : -1;
+      return 0;
+    });
+    renderTable(sorted);
+  }
+
+  function renderPagination(page, total, totalRecords) {
+    document.getElementById('pagination').innerHTML = `
+      <button onclick="loadRecords(1)" ${page===1?'disabled':''}>&#171;</button>
+      <button onclick="loadRecords(${page-1})" ${page===1?'disabled':''}>&#8249;</button>
+      <span class="page-info">Page ${page} of ${total} &nbsp;&middot;&nbsp; ${totalRecords.toLocaleString()} records</span>
+      <button onclick="loadRecords(${page+1})" ${page===total?'disabled':''}>&#8250;</button>
+      <button onclick="loadRecords(${total})" ${page===total?'disabled':''}>&#187;</button>
+    `;
+  }
+
+  // ── Status & Refresh ─────────────────────────────────────────────
+  async function loadStatus() {
+    try {
+      const res  = await fetch(`${API}/status`, { headers: HEADERS });
+      const data = await res.json();
+      document.getElementById('statusPills').innerHTML = Object.entries(data).map(([t, v]) =>
+        `<span class="status-pill">${t}: <b>${v.exists
+          ? v.records.toLocaleString() + ' rows &nbsp;·&nbsp; ' + v.from + ' → ' + v.to
+          : 'no data'
+        }</b></span>`
+      ).join('');
+    } catch {
+      document.getElementById('statusPills').innerHTML =
+        `<span class="status-pill" style="color:#ff7070">API offline</span>`;
+    }
+  }
+
+  async function triggerRefresh() {
+    const btn = document.getElementById('refreshBtn');
+    btn.disabled = true;
+    btn.textContent = '↻ Refreshing...';
+    try {
+      const res  = await fetch(`${API}/refresh`, { method: 'POST', headers: HEADERS });
+      const data = await res.json();
+      showAlert(
+        data.status === 'already_running'
+          ? 'A refresh is already in progress.'
+          : 'Refresh started. New data will appear shortly.',
+        data.status === 'already_running' ? 'info' : 'success'
+      );
+      setTimeout(() => { loadStatus(); applyView(); }, 2000);
+    } catch (err) {
+      showAlert(friendlyError(err), 'error');
+    } finally {
+      setTimeout(() => { btn.disabled = false; btn.textContent = '↻ Refresh Data'; }, 4000);
+    }
+  }
+
+  // ── UI helpers ───────────────────────────────────────────────────
+  function show(id, visible) {
+    document.getElementById(id).style.display = visible ? '' : 'none';
+  }
+
+  function setLoading() {
+    document.getElementById('loadingMsg').style.display = 'block';
+    document.getElementById('dataTable').style.display  = 'none';
+    document.getElementById('emptyMsg').style.display   = 'none';
+  }
+
+  function setEmpty(msg) {
+    document.getElementById('loadingMsg').style.display = 'none';
+    document.getElementById('dataTable').style.display  = 'none';
+    document.getElementById('emptyMsg').style.display   = msg ? 'block' : 'none';
+    document.getElementById('emptyMsg').textContent     = msg;
+  }
+
+  function showAlert(msg, type = 'error') {
+    const el = document.getElementById('alert');
+    el.className   = `alert alert-${type}`;
+    el.textContent = msg;
+    if (type !== 'error') setTimeout(hideAlert, 5000);
+  }
+
+  function hideAlert() {
+    document.getElementById('alert').className = 'alert';
+  }
+
+  function friendlyError(err) {
+    const m = (err.message || '').toLowerCase();
+    if (m.includes('failed to fetch') || m.includes('networkerror'))
+      return 'Cannot connect to the API. Make sure the server is running on port 8000.';
+    if (m.includes('no data found') || m.includes('run /refresh'))
+      return 'No data yet. Click Refresh Data to load from the EIA API.';
+    if (m.includes('401') || m.includes('invalid or missing api key'))
+      return 'Authentication failed. Check the API key in your .env file.';
+    if (m.includes("'date' parameter is required"))
+      return 'Select a date to run this query.';
+    return err.message || 'Something went wrong. Please try again.';
+  }
+</script>
+</body>
+</html>
